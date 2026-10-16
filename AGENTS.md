@@ -2,6 +2,8 @@
 
 目标：把一台越狱 Kindle 变成 agent 推送的墨水屏看板（herdr 里任意 agent 出内容 → 渲染 → 上屏）。前序工作由 qoder 会话 be002b57（2026-10-05/06）完成，本文件是该会话结束后核实过的设备事实。
 
+**已开源（2026-10-17）：https://github.com/cyancity/kindle-gadget （MIT，main 分支）。** 开源口径：本文件与 docs/opensource/ 里的序列号/MAC/SSH 公钥均已打码，`192.168.1.189` 是示例值（脚本认环境变量 `KINDLE_HOST`）；`vendor/*.bin`（许可不明）与 `out/`、`cards/usage.html`、`cards/versions/`（真实用量数据）不入库。改完仓库记得 commit + push。
+
 ## 设备
 
 - Kindle Oasis 3（第 10 代，2019，国行 8GB Wi-Fi），序列号 G000WLxxxxxxxx（已脱敏），devcode 0WL，带广告版
