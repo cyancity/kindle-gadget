@@ -1,0 +1,21 @@
+# python
+__pycache__/
+*.pyc
+
+# 渲染产物 / 截图（可能含真实用量与个人数据）
+out/
+
+# 生成的卡片与版本历史（含真实用量数据；示例 hello.html 保留）
+cards/*
+!cards/README.md
+!cards/hello.html
+
+# Studio 运行时
+studio/agent_tasks/
+
+# 早期探测遗留的 hotfix 载荷（许可不明，不入库）
+vendor/*.bin
+
+# 本地工具产物
+.playwright-cli/
+*.log

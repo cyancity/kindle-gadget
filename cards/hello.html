@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>hello</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body {
+    width: 1264px; height: 1680px;
+    font-family: "Noto Serif SC", "SimSun", serif;
+    background: #fff; color: #111;
+    padding: 120px 110px 90px;
+    box-sizing: border-box;
+  }
+  .tag { font-family: "JetBrains Mono", Consolas, monospace; font-size: 27px; letter-spacing: 7px; color: #6b6355; }
+  h1 { font-family: "Anthropic Sans", "Inter", sans-serif; font-size: 110px; line-height: 1.1; margin: 26px 0 40px; }
+  .rule { height: 5px; background: #111; margin-bottom: 56px; }
+  p { font-size: 38px; line-height: 1.75; margin-bottom: 26px; font-weight: 500; }
+  .num { font-family: "JetBrains Mono", Consolas, monospace; }
+  .foot { margin-top: 64px; font-size: 30px; color: #6b6355; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="tag">KINDLE GADGET / HELLO</div>
+  <h1>Hello, e-ink.</h1>
+  <div class="rule"></div>
+  <p>这张卡片由 PC 侧渲染：Chrome headless 截图，Pillow 做 16 阶灰度抖动，再经 SSH 管道推上屏幕。</p>
+  <p>任何能产出 HTML 文件的 agent，都能把内容送进这块 7 英寸墨水屏。</p>
+  <p>试着改改这个文件，然后：<span class="num">python push.py cards/hello.html</span></p>
+  <div class="foot">渲染：render.py（1264x1680，16 级灰度）<br>刷新：FBInk GC16 全刷 / GL16 局刷</div>
+</body>
+</html>

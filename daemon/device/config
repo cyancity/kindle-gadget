@@ -1,0 +1,18 @@
+# 看板 daemon 配置。每轮刷新间被重读，改完下一轮生效，无需重启。
+# MODE=ac      插电常驻：preventScreenSaver + 轮询（简单，插电用）
+# MODE=battery 电池省电：RTC 闹钟 + suspend-to-RAM
+#   !! 2026-10-16 真机实测失败：挂起后 RTC 闹钟与电源键都无法唤醒，需强制重启。
+#   !! 勿在无人值守时使用。详见 daemon/DESIGN.md 电源考证一节。
+MODE=ac
+
+# 刷新间隔（秒，最小 5）。ac=轮询间隔；battery=休眠时长
+INTERVAL=60
+
+# 每 N 轮插一次全刷（GC16 -f 去残影）。1=每轮全刷
+FULL_EVERY=6
+
+# 内容没变也照刷：1=照刷（自愈残影） 0=变了才刷（全刷仍按时插）
+REDRAW_UNCHANGED=1
+
+# battery 模式：唤醒后驻留秒数（等 WiFi 重连和 PC 管理通道，太短会摸不到设备）
+AWAKE_GRACE=20

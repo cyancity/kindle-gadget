@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>kindle-studio</title>
+<style>
+  /* Inter（OFL，随仓库分发）给没装本地字体的机器兜底；
+     Anthropic Sans 仅本地安装使用，不随仓库分发。 */
+  @font-face { font-family: "Inter"; src: url("/vendor/fonts/Inter-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "Inter"; src: url("/vendor/fonts/Inter-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+  @font-face { font-family: "Inter"; src: url("/vendor/fonts/Inter-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+  @font-face { font-family: "Inter"; src: url("/vendor/fonts/Inter-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { height: 100vh; display: flex; flex-direction: column;
+         font-family: "Anthropic Sans", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+         background: var(--bg); color: var(--fg); }
+  body.resizing { cursor: col-resize; user-select: none; }
+  ::selection { background: var(--sel); }
+  /* 浏览器原生部件归入纸感世界 */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--btn-border); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- 主题变量：「纸感工作台」 ----------
+     两个主题共享同一结构：墨线分隔、衬线标题、铜棕强调。
+     Dark = 暖黑纸（夜间桌面），Light = 米白纸（日间，主推）。 */
+  :root, body.dark {
+    --bg: #191714; --fg: #e6e1d6; --panel: #201d19; --panel2: #1a1815; --line: #3a352c;
+    --btn: #26221c; --btn-hover: #322d24; --btn-border: #443e32; --muted: #9a927f;
+    --accent: #c98f4e; --accent-fg: #191714; --list-hover: #26221c; --active-bg: #3a2f1f;
+    --active-fg: #ecc488; --active-border: #6b5432; --ok: #a8b86a; --err: #d97a6a;
+    --shadow: rgba(0,0,0,.55); --sel: #5a4326;
+  }
+  body.light {
+    --bg: #faf8f4; --fg: #2b2822; --panel: #f1ede5; --panel2: #f5f2ec; --line: #d8d2c4;
+    --btn: #faf8f4; --btn-hover: #ece7dc; --btn-border: #cfc8b8; --muted: #7d7462;
+    --accent: #8a5a2e; --accent-fg: #faf8f4; --list-hover: #ece7dc; --active-bg: #ead9c0;
+    --active-fg: #5f3d1c; --active-border: #c0a276; --ok: #5f7d33; --err: #b04a3a;
+    --shadow: rgba(120,105,80,.28); --sel: #e3cba4;
+  }
+
+  /* ---------- 顶部 Header：功能按钮区 ---------- */
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+           background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
+  header h1 { font-family: "Anthropic Sans", "Inter", "Segoe UI", sans-serif;
+              font-size: 16px; font-weight: 600; letter-spacing: .01em; margin-right: 8px; }
+  header h1 span { color: var(--accent); }
+  button {
+    background: var(--btn); color: var(--fg); border: 1px solid var(--btn-border); border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { background: var(--btn-hover); }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .45; cursor: default; }
+  .spacer { flex: 1; }
+  .kbd { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  /* 方向切换（契约 v2）：竖屏 1264×1680 / 横屏 1680×1264 */
+  #orientSeg { display: flex; }
+  #orientSeg button { border-radius: 0; }
+  #orientSeg button:first-child { border-radius: 6px 0 0 6px; }
+  #orientSeg button:last-child { border-radius: 0 6px 6px 0; border-left-width: 0; }
+  #orientSeg button.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+
+  /* ---------- 主体：侧边栏 + 双列内容区 ---------- */
+  main { flex: 1; display: flex; min-height: 0; }
+  /* 列顺序：侧边栏(0) 侧栏拖拽条(1) 预览(2) 列间拖拽条(3) 代码(4) */
+  #sidebar { order: 0; width: 200px; flex: none; display: flex; flex-direction: column;
+             background: var(--panel2); min-width: 0; }
+  body.side-closed #sidebar, body.side-closed #sideDrag { display: none; }
+  #sidebarHead { padding: 10px 12px; font-size: 12px; color: var(--muted);
+                 border-bottom: 1px solid var(--line); flex: none; }
+  #cardList { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .cardItem { text-align: left; padding: 7px 10px; font-size: 13px; background: none;
+              border: 1px solid transparent; border-radius: 6px;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cardItem:hover { background: var(--btn); }
+  .cardItem.active { background: var(--active-bg); color: var(--active-fg); border-color: var(--active-border); }
+  .vCount { font-size: 10.5px; color: var(--muted); background: var(--panel2); border: 1px solid var(--line);
+            border-radius: 8px; padding: 0 6px; margin-left: 6px; cursor: pointer; }
+  .cardItem.active .vCount { color: var(--active-fg); }
+  .verList { display: flex; flex-direction: column; padding: 2px 0 6px 14px; border-left: 2px solid var(--line);
+             margin: 0 0 4px 10px; }
+  .verItem { display: flex; justify-content: space-between; gap: 8px; text-align: left; padding: 4px 8px;
+             font-size: 11.5px; background: none; border: none; border-radius: 4px; font-family: Consolas, monospace; }
+  .verItem:hover { background: var(--btn); }
+  .verItem.active { background: var(--active-bg); color: var(--active-fg); }
+  .verItem .vNote { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .verEmpty { font-size: 11.5px; color: var(--muted); padding: 4px 8px; }
+  #btnNewCard { padding: 2px 9px; font-size: 11.5px; margin-left: auto; }
+  #sideDrag { order: 1; width: 5px; flex: none; cursor: col-resize;
+              background: var(--panel); border-right: 1px solid var(--line); }
+  #sideDrag:hover { background: var(--accent); }
+  /* 预览列宽度由拖拽实时设定（JS 写 style.width），flex:none */
+  #panePreview { order: 2; width: 46%; min-width: 320px; flex: none;
+                 display: flex; flex-direction: column; background: var(--panel2); }
+  #divider { order: 3; width: 6px; flex: none; cursor: col-resize;
+             background: var(--panel); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  #divider:hover { background: var(--accent); }
+  #paneCode { order: 4; flex: 1; min-width: 0; display: flex; }
+  #editor { flex: 1; min-width: 0; resize: none; border: none; outline: none; padding: 12px 14px;
+            background: var(--bg); color: var(--fg); font: 13px/1.55 Consolas, monospace; tab-size: 2; }
+  /* CodeMirror 容器：吃掉 paneCode 全部空间，主题融入纸感变量 */
+  #paneCode .CodeMirror { flex: 1; min-width: 0; height: auto;
+    background: var(--bg); color: var(--fg);
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; line-height: 1.55; }
+  #paneCode .CodeMirror-gutters { background: var(--bg); border-right: 1px solid var(--line); }
+  #paneCode .CodeMirror-linenumber { color: var(--muted); opacity: .55; }
+  #paneCode .CodeMirror-cursor { border-left: 2px solid var(--accent); }
+  #paneCode .CodeMirror-selected { background: var(--sel); }
+  /* HTML 语法四色（纸感适配）：标签铜棕、属性灰绿、字符串暖绿、注释弱化 */
+  #paneCode .cm-tag { color: var(--accent); }
+  #paneCode .cm-bracket { color: var(--muted); }
+  #paneCode .cm-attribute { color: #7d8a5a; }
+  #paneCode .cm-string { color: #8a9a5b; }
+  #paneCode .cm-comment { color: var(--muted); opacity: .6; }
+  #paneCode .cm-keyword { color: var(--accent); }
+  #paneCode .cm-property, #paneCode .cm-atom { color: #b08d57; }
+  body.light #paneCode .cm-attribute { color: #5a6b34; }
+  body.light #paneCode .cm-string { color: #6b7d3a; }
+  body.light #paneCode .cm-property, body.light #paneCode .cm-atom { color: #8a5a2e; }
+
+  /* ---------- 预览列 ---------- */
+  #previewBar { padding: 7px 12px; font-size: 12px; color: var(--muted);
+                display: flex; justify-content: space-between; gap: 8px; }
+  #previewWrap { flex: 1; display: flex; align-items: center; justify-content: center;
+                 overflow: auto; padding: 28px; min-height: 0; }
+  /* 壳与图同步缩放：图等比缩放定尺寸，壳是 inline-block 包住图（padding 即边框厚度）。
+     上限：横屏最宽 1150px / 竖屏最宽 860px（含边框），到顶不再放大；四周留白由
+     previewWrap 的 padding + align/justify center 保证，永不贴边。 */
+  /* 尺寸由 JS fitDevice() 显式计算（px），这里只管居中和外观 */
+  #device { width: auto; height: auto; flex: none; }
+  #device.landscape #screenBezel { aspect-ratio: 1680 / 1264; }
+  #device.portrait #screenBezel { aspect-ratio: 1264 / 1680; }
+  #screenBezel { flex: none; min-width: 0; min-height: 0; display: flex; }
+  #stage { flex: 1; min-width: 0; min-height: 0; }
+  /* 空态：骨架屏以屏幕比例占位（图未加载时 stage 无自然尺寸，由 aspect-ratio 兜住） */
+  #previewEmpty { aspect-ratio: inherit; }
+  /* ---------- Kindle Oasis 壳（按实机照片校形） ---------- */
+  /* 黑色玻璃面板覆盖屏幕并延伸到翻页键侧（右侧宽边框），
+     两颗长条实体键嵌在右缘。竖屏=右侧宽边；横屏=底部宽边（旋转后的同一侧）。 */
+  #device {
+    position: relative;
+    background: linear-gradient(155deg, #17181b, #0d0e10 55%, #141518 90%);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.03),
+                0 22px 55px var(--shadow), 0 3px 10px var(--shadow);
+  }
+  body.light #device {
+    background: linear-gradient(155deg, #2c2e33, #16171a 55%, #222327 90%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 0 1px rgba(255,255,255,.04),
+                0 22px 55px var(--shadow), 0 3px 10px var(--shadow);
+  }
+  /* 竖屏：右侧边条 44px（玻璃面板延伸区，实体键所在）；其余三边 10px */
+  #device.portrait { padding: 10px 44px 10px 10px; display: flex; }
+  /* 横屏：底部宽边 44px（同一块面板，设备旋转后在下） */
+  #device.landscape { padding: 10px 10px 44px 10px; display: flex; }
+  /* 两颗长条实体键（Oasis 独有的上下两颗），暗金属质感 */
+  #device::before, #device::after {
+    content: ''; position: absolute; border-radius: 3px;
+    background: linear-gradient(90deg, #35373c, #1b1c1f);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.14), inset 0 -1px 1px rgba(0,0,0,.6),
+                0 1px 2px rgba(0,0,0,.5);
+  }
+  body.light #device::before, body.light #device::after {
+    background: linear-gradient(90deg, #4a4d54, #2a2c31);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.2), inset 0 -1px 1px rgba(0,0,0,.55),
+                0 1px 2px rgba(0,0,0,.45);
+  }
+  /* 竖屏：右缘上下两颗竖长条 */
+  #device.portrait::before { right: 16px; top: 16%; width: 7px; height: 15%; }
+  #device.portrait::after  { right: 16px; top: 36%; width: 7px; height: 15%; }
+  /* 横屏：下缘左右两颗横长条 */
+  #device.landscape::before { bottom: 16px; left: 16%; width: 15%; height: 7px; }
+  #device.landscape::after  { bottom: 16px; left: 36%; width: 15%; height: 7px; }
+  /* 横屏 doc 中间的圆点（Oasis 底部那个指示灯/传感器位） */
+  #device.landscape::before {
+    content: ''; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #0b0d10; box-shadow: inset 0 1px 1px rgba(0,0,0,.8);
+  }
+  body.light #device.landscape::before { background: #9b9a96; }
+  #screenBezel { background: #000; padding: 8px; border-radius: 4px; display: flex;
+                 box-shadow: inset 0 0 0 1px var(--line); width: 100%; height: 100%;
+                 box-sizing: border-box; }
+  #stage { position: relative; font-size: 0; width: 100%; height: 100%;
+           display: flex; align-items: center; justify-content: center;
+           box-sizing: border-box; }
+  /* 横屏 1680 宽的图在这里等比缩放（max-width/max-height 100%） */
+  #preview { width: 100%; height: 100%; object-fit: contain; border: none;
+             image-rendering: pixelated; }
+  #previewEmpty { color: var(--muted); font-size: clamp(10px, 1.6vw, 18px); width: 100%; height: 100%;
+                  background: #fff; padding: 2em; box-sizing: border-box; display: flex;
+                  flex-direction: column; }
+  #previewEmpty[hidden] { display: none; }
+  #preview[hidden] { display: none; }
+  /* 骨架屏：em 定高（随壳大小缩放），灰条模拟卡片版式 */
+  .sk { background: #e3e0d8; border-radius: 3px; }
+  .sk-title { height: 2.6em; width: 55%; margin-bottom: 1em; }
+  .sk-rule { height: .4em; background: #1a1a1a; margin-bottom: 1.8em; }
+  .sk-line { height: 1em; margin-bottom: .8em; }
+  .sk-gap { height: 1.4em; }
+  .w60 { width: 60%; } .w70 { width: 70%; } .w80 { width: 80%; }
+  .w90 { width: 90%; } .w95 { width: 95%; }
+  .sk-wait { margin-top: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 1em;
+             color: #b0aa9c; letter-spacing: .12em; }
+  #stage.annotating { cursor: crosshair; }
+  .box { position: absolute; border: 2px solid var(--err); background: rgba(247,118,142,.12); pointer-events: none; }
+
+  /* ---------- 圈注面板（挂在预览列底部） ---------- */
+  #notePanel { padding: 10px 12px; border-top: 1px solid var(--line); background: var(--panel2); flex: none; }
+  #noteHint { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #noteText { width: 100%; height: 54px; resize: none; background: var(--btn); color: var(--fg);
+              border: 1px solid var(--btn-border); border-radius: 6px; padding: 6px 8px; font: 13px/1.4 sans-serif; }
+  #noteBtns { display: flex; gap: 8px; margin-top: 6px; }
+
+  /* ---------- 底部状态栏 ---------- */
+  #status { padding: 9px 16px; font-size: 12.5px; background: var(--panel); border-top: 1px solid var(--line); flex: none;
+            white-space: pre-wrap; max-height: 130px; overflow-y: auto; color: #9aa3b5; }
+  #status.ok { color: var(--ok); }
+  #status.err { color: var(--err); }
+</style>
+</head>
+<body>
+<header>
+  <h1>kindle<span>-studio</span></h1>
+  <button id="btnCards" class="primary" title="显示/隐藏左侧卡片列表">打开卡片</button>
+  <button id="btnPreview" title="Ctrl+S">预览（真实渲染）<span class="kbd">Ctrl+S</span></button>
+  <button id="btnLive" title="停止输入后自动重新渲染预览">实时预览：开</button>
+  <button id="btnUsage">生成用量卡</button>
+  <button id="btnUsageRefresh" title="取最新 ccusage 数据并直接推上 Kindle">用量卡→Kindle</button>
+  <button id="btnAnnotate">圈注模式</button>
+  <div id="orientSeg" title="渲染与推送方向（契约 v2）">
+    <button id="orientP" class="active" title="1264×1680">竖屏</button><button id="orientL" title="1680×1264">横屏</button>
+  </div>
+  <button id="btnUndo" hidden>还原</button>
+  <button id="btnTheme" title="深色/浅色主题">浅色</button>
+  <div class="spacer"></div>
+  <button id="btnPush" class="primary">推送到 Kindle</button>
+</header>
+<main id="main">
+  <!-- 左侧：卡片列表（替代旧版下拉框），右缘可拖拽调宽 -->
+  <aside id="sidebar">
+    <div id="sidebarHead">卡片列表（cards/）<button id="btnNewCard" title="新建空白卡片">＋新建</button></div>
+    <div id="cardList"></div>
+  </aside>
+  <div id="sideDrag" title="拖拽调整侧边栏宽度"></div>
+  <!-- 内容区左列：预览（推送上屏的内容） -->
+  <section id="panePreview">
+    <div id="previewBar"><span>预览 = render.py 真实产物（16 阶抖动）</span><span id="previewMeta"></span></div>
+    <div id="previewWrap">
+      <!-- Kindle 壳：纯 CSS 机身，屏内是真实渲染产物；空态显示骨架屏 -->
+      <div id="device" class="landscape">
+        <div id="screenBezel">
+          <div id="stage">
+            <img id="preview" hidden alt="">
+            <div id="previewEmpty">
+              <div class="sk sk-title"></div>
+              <div class="sk sk-rule"></div>
+              <div class="sk sk-line w80"></div>
+              <div class="sk sk-line w95"></div>
+              <div class="sk sk-line w70"></div>
+              <div class="sk sk-gap"></div>
+              <div class="sk sk-line w90"></div>
+              <div class="sk sk-line w60"></div>
+              <div class="sk-wait">waiting input…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="notePanel" hidden>
+      <div id="noteHint">已圈 0 处。拖拽预览图圈出要改的区域。</div>
+      <textarea id="noteText" placeholder="对圈注区域要改什么？例：这两行太挤，间距加大；标题换成灰色"></textarea>
+      <div id="noteBtns">
+        <button id="btnAi" class="primary">发给本地 Agent</button>
+        <button id="btnClearBoxes">清除圈注</button>
+      </div>
+    </div>
+  </section>
+  <!-- 中间分隔条：左右拖拽分配预览/代码列宽（替代旧交换按钮） -->
+  <div id="divider" title="拖拽调整两列宽度"></div>
+  <!-- 内容区右列：HTML 代码编辑器 -->
+  <section id="paneCode">
+    <textarea id="editor" hidden spellcheck="false" placeholder="在这里编辑卡片 HTML（竖屏 1264×1680 / 横屏 1680×1264）…&#10;约束：无 flex gap / position:fixed / 动画 / emoji；字号 ≥30px；白底黑字。"></textarea>
+  </section>
+</main>
+<div id="status">就绪。</div>
+
+<link rel="stylesheet" href="/vendor/codemirror.css">
+<script src="/vendor/codemirror.js"></script>
+<script src="/vendor/mode-xml.js"></script>
+<script src="/vendor/mode-css.js"></script>
+<script src="/vendor/mode-htmlmixed.js"></script>
+
+<script>
+const $ = id => document.getElementById(id);
+const preview = $('preview'), previewEmpty = $('previewEmpty'),
+      previewMeta = $('previewMeta'), statusEl = $('status'), btnPush = $('btnPush'),
+      panePreview = $('panePreview'),
+      btnPreview = $('btnPreview'), btnUsage = $('btnUsage'), stage = $('stage'),
+      btnAnnotate = $('btnAnnotate'), notePanel = $('notePanel'),
+      noteHint = $('noteHint'), noteText = $('noteText'), btnAi = $('btnAi'),
+      btnClearBoxes = $('btnClearBoxes'), btnUndo = $('btnUndo'),
+      btnCards = $('btnCards'), cardList = $('cardList'), sidebar = $('sidebar'),
+      sideDrag = $('sideDrag'), divider = $('divider'), mainEl = $('main'),
+      device = $('device'),
+      orientP = $('orientP'), orientL = $('orientL');
+/* ---------- CodeMirror 编辑器：editor 引用即代理（value/事件 API 兼容） ---------- */
+const editor = (() => {
+  const ta = $('editor');
+  const cm = CodeMirror(ta.parentNode, {
+    value: ta.value,
+    mode: 'htmlmixed',
+    lineNumbers: true,
+    lineWrapping: true,
+    tabSize: 2,
+    inputStyle: 'contenteditable',
+    spellcheck: false,
+  });
+  ta.remove();
+  cm.on('change', () => listeners.input.forEach(f => f()));
+  cm.on('keydown', (inst, e) => listeners.key.forEach(f => f(e)));
+  const listeners = { input: [], key: [] };
+  return {
+    get value() { return cm.getValue(); },
+    set value(v) { cm.setValue(v); },
+    addEventListener(type, fn) { listeners[type]?.push(fn); },
+    cm,
+  };
+})();
+
+
+// 契约 v2：方向（用户要求默认横屏）
+const DIMS = { portrait: [1264, 1680], landscape: [1680, 1264] };
+let orientation = 'landscape';
+
+let boxes = [];          // {x,y,w,h}，基于当前方向渲染图的自然坐标
+let annotating = false;
+let drawing = null;      // 拖拽中的圈注框
+let undoValue = null;    // 上次 AI 修改前的编辑器内容
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = cls || '';
+}
+
+async function api(path, body) {
+  const opt = body !== undefined
+    ? { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }
+    : {};
+  const r = await fetch(path, opt);
+  return r.json();
+}
+
+function metaText(bytes) {
+  const [w, h] = DIMS[orientation];
+  const dir = orientation === 'portrait' ? '竖屏' : '横屏';
+  return bytes === undefined ? `${w}×${h} · ${dir}` : `${w}×${h} · ${dir} · ${bytes.toLocaleString()} B`;
+}
+
+async function doPreview() {
+  const html = editor.value;
+  if (!html.trim()) { setStatus('编辑器是空的。', 'err'); return; }
+  btnPreview.disabled = true;
+  setStatus('渲染中…');
+  try {
+    const d = await api('/api/render', { html, orientation });
+    if (d.ok) {
+      preview.src = 'data:image/png;base64,' + d.png;
+      preview.hidden = false; previewEmpty.hidden = true;
+      previewMeta.textContent = metaText(d.bytes);
+      setStatus('预览已更新。', 'ok');
+    } else {
+      setStatus('渲染失败：\n' + d.error, 'err');
+    }
+  } catch (e) { setStatus('请求失败：' + e.message + '（server 还在跑吗？）', 'err'); }
+  btnPreview.disabled = false;
+}
+
+async function doPush() {
+  const html = editor.value;
+  if (!html.trim()) { setStatus('编辑器是空的。', 'err'); return; }
+  btnPush.disabled = true;
+  setStatus('推送中：渲染 → 写 daemon 内容池 → FBInk 全刷…');
+  try {
+    const d = await api('/api/push', { html, orientation });
+    if (d.ok) {
+      setStatus('已推送到 Kindle ✓（daemon 下一轮按 meta 方向重画）\n' + (d.log || ''), 'ok');
+      doPreview();
+    } else {
+      setStatus('推送失败：\n' + (d.error || d.log || ''), 'err');
+    }
+  } catch (e) { setStatus('请求失败：' + e.message, 'err'); }
+  btnPush.disabled = false;
+}
+
+async function doUsage() {
+  btnUsage.disabled = true;
+  setStatus('生成用量卡：跑 ccusage 取数…');
+  try {
+    const d = await api('/api/usage');
+    if (d.ok) {
+      editor.value = d.html;
+      setStatus('用量卡已生成并载入编辑器。\n' + (d.gen_log || ''), 'ok');
+      doPreview();
+    } else {
+      setStatus('生成失败：\n' + d.error, 'err');
+    }
+  } catch (e) { setStatus('请求失败：' + e.message, 'err'); }
+  btnUsage.disabled = false;
+}
+
+/* ---------- 卡片列表（侧边栏）：卡片 + 可展开版本树 + 新建 ---------- */
+let currentCard = null;
+
+async function loadCardList(selectFirst = false) {
+  const d = await api('/api/cards');
+  if (!d.ok) return;
+  cardList.innerHTML = '';
+  d.cards.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'cardItem';
+    const nV = c.version_count ? ` <span class="vCount">${c.version_count}</span>` : '';
+    b.innerHTML = `${c.name}${nV}`;
+    b.title = c.last_note ? `${c.name}（${c.last_note}）` : c.name;
+    b.addEventListener('click', e => {
+      if (e.target.classList.contains('vCount')) { toggleVersions(c.name, b); return; }
+      openCard(c.name, b);
+    });
+    cardList.appendChild(b);
+    // 默认选中第一张（用户要求：进来就选中，编辑器和预览即刻可用）
+    if (selectFirst && c === d.cards[0]) openCard(c.name, b);
+  });
+}
+
+async function toggleVersions(name, btn) {
+  const existing = cardList.querySelector('.verList');
+  if (existing && existing.dataset.for === name) { existing.remove(); return; }
+  cardList.querySelectorAll('.verList').forEach(x => x.remove());
+  const d = await api('/api/card/versions?name=' + encodeURIComponent(name));
+  if (!d.ok) return;
+  const box = document.createElement('div');
+  box.className = 'verList';
+  box.dataset.for = name;
+  if (!d.versions.length) {
+    box.innerHTML = '<div class="verEmpty">还没有历史版本</div>';
+  } else {
+    [...d.versions].reverse().forEach(v => {
+      const vb = document.createElement('button');
+      vb.className = 'verItem';
+      vb.innerHTML = `<span>${v.version}</span><span class="vNote">${v.note || ''}</span>`;
+      vb.title = `${v.version} · ${v.bytes} B · ${v.note || ''}`;
+      vb.addEventListener('click', async () => {
+        const r = await api(`/api/card?name=${encodeURIComponent(name)}&version=${encodeURIComponent(v.version)}`);
+        if (r.ok) {
+          editor.value = r.html;
+          undoValue = editor.value; btnUndo.hidden = false;  // 载入历史版也可还原
+          setStatus(`已载入 ${name} @ ${v.version}（这是历史版，保存才会覆盖 current）。`, 'ok');
+          cardList.querySelectorAll('.verItem.active').forEach(x => x.classList.remove('active'));
+          vb.classList.add('active');
+          doPreview();
+        }
+      });
+      box.appendChild(vb);
+    });
+  }
+  btn.after(box);
+}
+
+async function openCard(name, btn) {
+  const d = await api('/api/card?name=' + encodeURIComponent(name));
+  if (d.ok) {
+    editor.value = d.html;
+    currentCard = name;
+    setStatus(`已载入 ${d.name}。`, 'ok');
+    cardList.querySelectorAll('.cardItem.active').forEach(x => x.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    doPreview();
+  } else {
+    setStatus(d.error, 'err');
+  }
+}
+
+/* 新建空白卡片 */
+const btnNewCard = $('btnNewCard');
+btnNewCard.addEventListener('click', async () => {
+  const name = prompt('新卡片名字（可省略 .html）：', `card-${new Date().toISOString().slice(5, 10)}.html`);
+  if (!name) return;
+  const d = await api('/api/card/new', { name: name.trim() });
+  if (d.ok) {
+    await loadCardList();
+    openCard(d.name, [...cardList.querySelectorAll('.cardItem')].find(b => b.textContent.startsWith(d.name)));
+    setStatus(`已创建 ${d.name}，右侧编辑器可直接改。`, 'ok');
+  } else {
+    setStatus('创建失败：\n' + d.error, 'err');
+  }
+});
+
+/* Ctrl+S = 保存当前卡片（落盘并自动存档旧版） */
+editor.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (!currentCard) { setStatus('还没有打开卡片；先在左侧选一张或新建。', 'err'); return; }
+    saveCard();
+  }
+});
+async function saveCard() {
+  const d = await api('/api/card/save', { name: currentCard, html: editor.value, note: '编辑器保存' });
+  if (d.ok) {
+    setStatus(`已保存 ${currentCard}` + (d.prev_version ? `（旧版存档 ${d.prev_version}）` : ''), 'ok');
+    loadCardList();
+  } else setStatus('保存失败：\n' + d.error, 'err');
+}
+
+
+/* ---------- 壳尺寸：JS 按可用空间与卡片比例显式计算（杜绝 CSS 循环依赖） ---------- */
+function fitDevice() {
+  const pad = 28 * 2;                       // previewWrap 自身 padding
+  const availW = previewWrap.clientWidth - pad;
+  const availH = previewWrap.clientHeight - pad;
+  const [nw, nh] = DIMS[orientation];
+  const chromeW = orientation === 'landscape' ? 20 + 20 : 20 + 54;   // bezel 8*2 + device 左右
+  const chromeH = orientation === 'landscape' ? 20 + 54 : 20 + 30;   // bezel 8*2 + device 上下
+  let s = Math.min((availW - chromeW) / nw, (availH - chromeH) / nh, 1150 / (nw + chromeW));
+  s = Math.max(s, 0.15);
+  device.style.width = Math.round(nw * s + chromeW) + 'px';
+  device.style.height = Math.round(nh * s + chromeH) + 'px';
+}
+window.addEventListener('resize', fitDevice);
+
+/* ---------- 方向切换（契约 v2） ---------- */
+function setOrientation(o) {
+  orientation = o;
+  orientP.classList.toggle('active', o === 'portrait');
+  orientL.classList.toggle('active', o === 'landscape');
+  device.classList.toggle('portrait', o === 'portrait');
+  device.classList.toggle('landscape', o === 'landscape');
+  fitDevice();
+  previewMeta.textContent = metaText();
+  setStatus(`方向已切到${o === 'portrait' ? '竖屏' : '横屏'}（${DIMS[o][0]}×${DIMS[o][1]}）。`);
+  // 已有预览就立刻按新方向重渲染；预览列里等比缩放由 CSS 兜底
+  if (!preview.hidden && editor.value.trim()) doPreview();
+}
+orientP.addEventListener('click', () => setOrientation('portrait'));
+orientL.addEventListener('click', () => setOrientation('landscape'));
+
+/* ---------- 主题切换（Dark/Light） ---------- */
+const btnTheme = $('btnTheme');
+try {
+  const t = localStorage.getItem('ks.theme');
+  if (t === 'light') { document.body.classList.add('light'); btnTheme.textContent = '深色'; }
+} catch (_) {}
+btnTheme.addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  btnTheme.textContent = light ? '深色' : '浅色';
+  try { localStorage.setItem('ks.theme', light ? 'light' : 'dark'); } catch (_) {}
+});
+
+/* 初始壳方向同步（默认 landscape）：把按钮 active 态也一起同步 */
+orientP.classList.remove('active');
+orientL.classList.add('active');
+device.classList.add('landscape');
+fitDevice();
+
+/* ---------- 侧边栏：显示/隐藏 + 拖拽调宽 ---------- */
+const SIDE_KEY = 'ks.sidebar.w';
+function setSideWidth(w) {
+  w = Math.max(170, Math.min(520, Math.round(w)));
+  sidebar.style.width = w + 'px';
+}
+try {
+  const saved = parseInt(localStorage.getItem(SIDE_KEY), 10);
+  if (saved) setSideWidth(saved);
+} catch (_) {}
+
+btnCards.addEventListener('click', () => {
+  const closed = document.body.classList.toggle('side-closed');
+  btnCards.classList.toggle('primary', !closed);
+});
+
+let sideDragging = false;
+sideDrag.addEventListener('mousedown', e => {
+  e.preventDefault();
+  sideDragging = true;
+  document.body.classList.add('resizing');
+});
+window.addEventListener('mousemove', e => {
+  if (sideDragging) setSideWidth(e.clientX);  // 侧边栏左缘贴视口左缘，宽度即光标 x
+});
+window.addEventListener('mouseup', () => {
+  if (!sideDragging) return;
+  sideDragging = false;
+  document.body.classList.remove('resizing');
+  try { localStorage.setItem(SIDE_KEY, sidebar.style.width); } catch (_) {}
+});
+
+/* ---------- 列间拖拽（替代旧交换按钮） ---------- */
+const DIV_KEY = 'ks.divider';
+let divDragging = false;
+divider.addEventListener('mousedown', e => {
+  divDragging = true;
+  e.preventDefault();
+});
+window.addEventListener('mousemove', e => {
+  if (!divDragging) return;
+  const mainRect = mainEl.getBoundingClientRect();
+  const sideW = document.body.classList.contains('side-closed') ? 0 : sidebar.getBoundingClientRect().width + 5;
+  // 预览列宽 = 光标位置 - 侧边栏区域 - 分隔条一半；限制在 [320, 主体宽-360]
+  let w = e.clientX - mainRect.left - sideW - 3;
+  const max = mainRect.width - sideW - 380;
+  w = Math.max(320, Math.min(w, max));
+  panePreview.style.width = w + 'px';
+  fitDevice();  // 拖动中实时重算壳尺寸——mouseup 丢失（拖出窗外）也不会卡在旧尺寸
+});
+window.addEventListener('mouseup', () => {
+  if (!divDragging) return;
+  divDragging = false;
+  fitDevice();
+  try { localStorage.setItem(DIV_KEY, panePreview.style.width); } catch (_) {}
+});
+try { const dw = localStorage.getItem(DIV_KEY); if (dw) panePreview.style.width = dw; } catch (_) {}
+
+/* ---------- 圈注 → AI 改 ---------- */
+function renderBoxes() {
+  stage.querySelectorAll('.box').forEach(b => b.remove());
+  const s = preview.naturalWidth ? preview.clientWidth / preview.naturalWidth : 0;
+  for (const b of boxes) {
+    const d = document.createElement('div');
+    d.className = 'box';
+    d.style.cssText = `left:${b.x * s}px; top:${b.y * s}px; width:${b.w * s}px; height:${b.h * s}px`;
+    stage.appendChild(d);
+  }
+  noteHint.textContent = `已圈 ${boxes.length} 处。` + (annotating ? '拖拽预览图继续圈。' : '开启圈注模式后拖拽预览图。');
+}
+new ResizeObserver(renderBoxes).observe(stage);
+
+function stagePos(e) {
+  const r = preview.getBoundingClientRect();
+  const k = preview.naturalWidth / r.width;
+  return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k, k };
+}
+
+btnAnnotate.addEventListener('click', () => {
+  annotating = !annotating;
+  btnAnnotate.classList.toggle('primary', annotating);
+  stage.classList.toggle('annotating', annotating);
+  notePanel.hidden = !(annotating || boxes.length);
+  renderBoxes();
+});
+
+stage.addEventListener('mousedown', e => {
+  if (!annotating || e.target !== preview) return;
+  e.preventDefault();
+  const p = stagePos(e);
+  drawing = { x0: p.x, y0: p.y, el: document.createElement('div') };
+  drawing.el.className = 'box';
+  stage.appendChild(drawing.el);
+});
+stage.addEventListener('mousemove', e => {
+  if (!drawing) return;
+  const p = stagePos(e);
+  const x = Math.min(drawing.x0, p.x), y = Math.min(drawing.y0, p.y);
+  const w = Math.abs(p.x - drawing.x0), h = Math.abs(p.y - drawing.y0);
+  const s = p.k ? preview.clientWidth / preview.naturalWidth : 0;
+  drawing.el.style.cssText = `left:${x * s}px; top:${y * s}px; width:${w * s}px; height:${h * s}px`;
+  drawing.cur = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+});
+window.addEventListener('mouseup', () => {
+  if (!drawing) return;
+  const b = drawing.cur;
+  if (b && b.w > 8 && b.h > 8) boxes.push(b);
+  drawing.el.remove();
+  drawing = null;
+  notePanel.hidden = false;
+  renderBoxes();
+});
+
+btnClearBoxes.addEventListener('click', () => { boxes = []; renderBoxes(); });
+
+/* 圈注 → 本地 Agent（Claude Code 会话）。
+   页面不直接调 LLM：POST /api/agent-task 落单，本地会话轮询领取、改完回填。
+   页面每 3s 查一次 /api/agent-task?until=<id> 的结果。 */
+let agentTaskId = null;
+btnAi.addEventListener('click', async () => {
+  const comment = noteText.value.trim();
+  if (!comment) { setStatus('先写一句修改要求。', 'err'); return; }
+  if (!boxes.length) { setStatus('还没圈任何区域；开着圈注模式在预览上拖拽。', 'err'); return; }
+  btnAi.disabled = true;
+  setStatus('已发给本地 Agent，等待改版式（页面每 3 秒查一次结果）…', '');
+  try {
+    const d = await api('/api/agent-task', {
+      html: editor.value, boxes, comment, orientation,
+    });
+    if (d.ok) {
+      agentTaskId = d.id;
+      pollAgentTask();
+    } else {
+      setStatus('派单失败：\n' + d.error, 'err');
+      btnAi.disabled = false;
+    }
+  } catch (e) {
+    setStatus('请求失败：' + e.message, 'err');
+    btnAi.disabled = false;
+  }
+});
+
+let polling = false;
+async function pollAgentTask() {
+  if (polling || agentTaskId === null) return;
+  polling = true;
+  try {
+    const d = await api('/api/agent-task?until=' + agentTaskId);
+    if (d.ok && d.status === 'done') {
+      undoValue = editor.value;
+      btnUndo.hidden = false;
+      editor.value = d.html;
+      boxes = []; noteText.value = '';
+      renderBoxes();
+      await doPreview();
+      setStatus('本地 Agent 已改完并载入编辑器。不满意点「还原」。', 'ok');
+      agentTaskId = null;
+      btnAi.disabled = false;
+    } else if (!d.ok) {
+      setStatus('查询失败：\n' + d.error, 'err');
+      agentTaskId = null;
+      btnAi.disabled = false;
+    }
+  } catch (_) { /* server 忙，下轮再查 */ }
+  polling = false;
+  if (agentTaskId !== null) setTimeout(pollAgentTask, 3000);
+}
+
+btnUndo.addEventListener('click', () => {
+  if (undoValue === null) return;
+  editor.value = undoValue;
+  undoValue = null;
+  btnUndo.hidden = true;
+  setStatus('已还原到 AI 修改前。', 'ok');
+  doPreview();
+});
+
+/* ---------- 实时预览：停止输入 800ms 自动渲染 ---------- */
+let liveOn = true, liveTimer = null, rendering = false, dirty = false;
+editor.addEventListener('input', () => {
+  if (!liveOn) return;
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(async () => {
+    if (rendering) { dirty = true; return; }
+    rendering = true;
+    do { dirty = false; await doPreview(); } while (dirty);
+    rendering = false;
+  }, 800);
+});
+
+const btnLive = $('btnLive');
+btnLive.addEventListener('click', () => {
+  liveOn = !liveOn;
+  btnLive.textContent = liveOn ? '实时预览：开' : '实时预览：关';
+});
+
+/* ---------- 用量卡一键刷新（第三期：取数→渲染→推 Kindle） ---------- */
+const btnUsageRefresh = $('btnUsageRefresh');
+btnUsageRefresh.addEventListener('click', async () => {
+  btnUsageRefresh.disabled = true;
+  setStatus('用量卡刷新中：跑 ccusage（20-60 秒）→ 渲染横屏 → 推 Kindle…', '');
+  try {
+    const d = await api('/api/usage/refresh', {});
+    if (d.ok) setStatus('用量卡已刷新并推上 Kindle ✓\n' + (d.log || ''), 'ok');
+    else setStatus('刷新失败：\n' + d.error, 'err');
+  } catch (e) { setStatus('请求失败：' + e.message, 'err'); }
+  btnUsageRefresh.disabled = false;
+});
+
+loadCardList(true);
+</script>
+</body>
+</html>
