@@ -5,10 +5,11 @@ __pycache__/
 # 渲染产物 / 截图（可能含真实用量与个人数据）
 out/
 
-# 生成的卡片与版本历史（含真实用量数据；示例 hello.html 保留）
+# 生成的卡片与版本历史（含真实用量数据；示例 hello.html、desk.html 保留）
 cards/*
 !cards/README.md
 !cards/hello.html
+!cards/desk.html
 
 # Studio 运行时
 studio/agent_tasks/

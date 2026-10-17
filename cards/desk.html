@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>desk</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body {
+    width: 1680px; height: 1264px;
+    font-family: "Noto Serif SC", "SimSun", serif;
+    background: #fff; color: #111;
+    padding: 110px 110px 80px;
+    box-sizing: border-box;
+  }
+  table { border-collapse: collapse; width: 100%; }
+  .tag { font-family: "JetBrains Mono", Consolas, monospace; font-size: 27px; letter-spacing: 7px; color: #6b6355; }
+  .date { font-family: "Inter", sans-serif; font-size: 112px; font-weight: 700; line-height: 1.1; margin-top: 18px; }
+  .sub { font-size: 36px; color: #444; margin-top: 10px; }
+  .rule { height: 5px; background: #111; margin: 60px 0 56px; }
+  h2 { font-family: "Inter", sans-serif; font-size: 36px; letter-spacing: 4px; color: #6b6355; margin-bottom: 24px; }
+  td { font-size: 44px; line-height: 1.5; padding: 16px 0; vertical-align: top; }
+  .st { font-family: "JetBrains Mono", Consolas, monospace; font-size: 34px; width: 190px; padding-top: 22px; }
+  .done { color: #111; }
+  .run { color: #555; }
+  .wait { color: #888; }
+  .r { text-align: right; }
+  .col { width: 50%; vertical-align: top; }
+  .col + .col { padding-left: 64px; border-left: 3px solid #bbb; }
+  .big { font-family: "Inter", sans-serif; font-size: 72px; font-weight: 700; }
+  .foot { margin-top: 56px; font-size: 30px; color: #6b6355; }
+</style>
+</head>
+<body>
+  <table>
+    <tr>
+      <td><div class="tag">KINDLE GADGET / DESK</div><div class="date">周六 10 月 17 日</div><div class="sub">多云 18°C · 下午有雨，出门带伞</div></td>
+      <td class="r" style="vertical-align:bottom"><div class="big">09:30</div><div class="sub">上次推送</div></td>
+    </tr>
+  </table>
+  <div class="rule"></div>
+  <table>
+    <tr>
+      <td class="col">
+        <h2>AGENT 任务</h2>
+        <table>
+          <tr><td class="st done">[完成]</td><td>整理 Q3 读书笔记</td></tr>
+          <tr><td class="st run">[进行]</td><td>翻译 SETUP 文档第 4 节</td></tr>
+          <tr><td class="st run">[进行]</td><td>汇总本周提交记录</td></tr>
+          <tr><td class="st wait">[排队]</td><td>重绘用量卡横屏版</td></tr>
+        </table>
+      </td>
+      <td class="col">
+        <h2>今天</h2>
+        <table>
+          <tr><td class="st">11:00</td><td>咖啡豆到货</td></tr>
+          <tr><td class="st">14:30</td><td>牙医复诊</td></tr>
+          <tr><td class="st">19:00</td><td>羽毛球 · 2 号场</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  <div class="foot">由 agent 写入 cards/desk.html，daemon 每 60 秒检查一次新图</div>
+</body>
+</html>
